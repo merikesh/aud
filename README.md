@@ -13,10 +13,26 @@ libraries is either difficult or impossible.
 ## Current Status
 
 This repository is currently under development.
-It currently is non functional and is currently capable of extracting the schemas from USD's source code
-into a skeleton in Python.
 
-The next step is writing out USD files succesfully and making a plugin for Blender.
+Below are a list of requested and suggested features.
+
+Note that not all features are planned to be implemented.
+
+
+- [x] Extract USD schemas from USD Source code
+- [x] Write out `.usda` files with support for
+    * Stage properties
+    * Hierarchies with support for classes, defs, and overs
+    * Properties and Attributes for prims
+    * References and inheritance
+    * VariantSets and Variants
+    * Time Samples
+- [ ] Blender export plugin ( **WIP** )
+- [ ] Validation of data against the schema
+- [ ] Maya export plugin ( Maybe to check for parity with official plugin)
+- [ ] Read support ( No plans )
+- [ ] Support for reading/writing binary `.usd` files ( No plans )
+- [ ] Support for reading/writing `.usdz` files ( No plans )
 
 ## Caveat
 
@@ -29,7 +45,7 @@ correct and there is no obligation for either myself or Pixar to support any err
 
 ## Building
 
-To build this library, run the `build.py` script found in the root of this repository.
+To build this library, run the `aud/__build__/__init__.py` script found in the root of this repository.
 
 This will automatically download the latest version of the USD source code if it cannot find it,
 and will generate new versions of the library from that.
@@ -62,9 +78,9 @@ it exists, otherwise it will fall back to the generated class.
 
 ### Build Scripts
 
-All code required to build this library will be stored under the `build` directory.
+All code required to build this library will be stored under the `__build__` directory.
 
-None of this code should be distributed with the library.
+This is distributed with the library but is not to be used by a third party.
 
 ### Plugins
 
@@ -74,3 +90,12 @@ Plugins for various applications should be stored under the `plugins` directory 
 ## License
 
 This library is licensed under the MIT license.
+
+## Contributions
+
+Contributions are gladly accepted.
+
+Please open an issue before starting work so we don't double up efforts accidentally.
+
+Perform your work in a branch and make a pull request when you're ready or need to discuss anything.
+

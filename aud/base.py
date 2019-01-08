@@ -4,8 +4,13 @@ import weakref
 __version__ = "0.0.1"
 
 
-def formatted_value(value):
-    """Format a given input value to be compliant for USD"""
+def formatted_value(value, array=True):
+    """Format a given input value to be compliant for USD
+
+    Args:
+        array (bool): If provided, will treat iterables as an array rather than a tuple
+
+    """
     if isinstance(value, str):
         value = '"{}"'.format(value.replace('"', '\\"'))
     elif isinstance(value, (list, tuple)):
@@ -13,9 +18,13 @@ def formatted_value(value):
 
         for val in value:
             if isinstance(val, str):
-                val = '"{}"'.format(val.replace('"', '\\"'))
+                val = formatted_value(val, array=False)
             temp.append(str(val))
-        value = '[{}]'.format(', '.join(temp))
+        value = '{}{}{}'.format(
+            '[' if array else '(',
+            ', '.join(temp),
+            ']' if array else ')'
+        )
 
     return str(value)
 
@@ -39,6 +48,7 @@ class AbstractData(object):
         self.name = None
         self.value = None
         self.parent = None
+        self.keyframes = {}
 
     def indent(self, level=None):
         """Returns the indentation string"""
@@ -51,8 +61,25 @@ class AbstractData(object):
         self.level = indent
         return []
 
-    def formatted_value(self):
-        return formatted_value(self.value)
+    def formatted_name(self):
+        name = self.name
+        if self.keyframes:
+            name = '{}.timeSamples'.format(name)
+
+        return name
+
+    def formatted_value(self, frame=None):
+        if frame is None:
+            value = self.value
+        elif frame in self.keyframes:
+            value = self.keyframes[frame]
+        else:
+            raise KeyError("No keyframe value for frame: {}".format(frame))
+
+        return formatted_value(value, array=self.as_type and '[' in self.as_type)
+
+
+
 
     def set_value(self, value):
         self.was_set = True
@@ -92,7 +119,7 @@ class AbstractData(object):
         prop_obj.set_value(value)
         return prop_obj
 
-    def set_attribute(self, attr, value, as_type=None, is_uniform=False):
+    def set_attribute(self, attr, value, as_type=None, is_uniform=None):
         attr_obj = self.get_attribute(attr, defaults=True)
         if not attr_obj:
             attr_obj = self.add_attribute(attr, as_type=as_type, is_uniform=is_uniform)
@@ -100,6 +127,10 @@ class AbstractData(object):
             attr_obj = self.add_attribute(attr_obj)
 
         attr_obj.set_value(value)
+        if as_type is not None:
+            attr_obj.as_type = as_type
+        if is_uniform is not None:
+            attr_obj.is_uniform = is_uniform
         return attr_obj
 
     def get_property(self, name, defaults=False):
@@ -194,6 +225,10 @@ class AbstractData(object):
         classes.append(self.__class__)
 
         return classes
+
+    def set_keyframe(self, frame, value):
+        self.value = None
+        self.keyframes[frame] = value
 
 
 class Stage(AbstractData):
@@ -343,6 +378,20 @@ class Prim(AbstractData):
 
         iterable.append(variant)
 
+    def set_xform_order(self, order='trs'):
+        ops = []
+        for o in order:
+            if o == 't':
+                ops.append('xformOp:translate')
+            elif o == 'r':
+                ops.append('xformOp:rotateXYZ')
+            elif o == 's':
+                ops.append('xformOp:scale')
+            else:
+                raise ValueError('Cannot understand xform order: {}'.format(o))
+
+        self.set_attribute('xformOpOrder', ops, as_type='token[]', is_uniform=True)
+
 
 class Property(AbstractData):
     """A property for a USD Prim that appears between the parenthesis"""
@@ -362,14 +411,28 @@ class Property(AbstractData):
         if self.as_type:
             tokens.append(self.as_type)
 
-        tokens.extend([self.name, '=', self.formatted_value()])
+        tokens.extend([self.formatted_name(), '='])
+        if self.keyframes:
+            tokens.append('{')
+        else:
+            tokens.append(self.formatted_value())
+
         tokens = [str(t) for t in tokens]
 
         tokens = ' '.join([t for t in tokens if t])
 
         lines.append("{}{}\n".format(self.indent(), tokens))
 
-        return lines
+        if not self.keyframes:
+            return lines
+
+        self.level += 1
+        for frame, value in self.keyframes:
+            lines.append("{}{}:{},\n".format(
+                self.indent(), frame, self.formatted_value(frame=frame)
+            ))
+        self.level -= 1
+        lines.append("{}}}\n".format(self.indent(), ))
 
 
 class Attribute(AbstractData):
@@ -398,13 +461,29 @@ class Attribute(AbstractData):
         if self.as_type:
             tokens.append(self.as_type)
 
-        tokens.append(self.name)
+        tokens.append(self.formatted_name())
 
         tokens.append('=')
-        tokens.append(self.formatted_value())
+        if self.keyframes:
+            tokens.append('{\n')
+        else:
+            tokens.append(self.formatted_value())
         tokens = [str(t) for t in tokens]
 
         lines.append('{}{}'.format(self.indent(), ' '.join(tokens)))
+        if self.keyframes:
+            self.level += 1
+            for frame in self.keyframes:
+                lines.append('{}{}: {},\n'.format(
+                    self.indent(),
+                    frame,
+                    self.formatted_value(frame=frame)
+                ))
+
+            self.level -= 1
+            lines.append('{}}}\n'.format(self.indent()))
+
+
         if not self.properties:
             return lines
 

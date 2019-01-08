@@ -119,12 +119,13 @@ def generate_python(version, schema_root):
 
 
 def main(version="19.01"):
-    logger.info("Running aud-builder")
+    print("Running aud-builder using version {} of USD and Python {}.{}.{}".format(
+        version, sys.version_info.major, sys.version_info.minor, sys.version_info.micro
+    ))
     version_root = download_usd(version)
     schema_root = copy_schemas(version_root)
     generate_python(version, schema_root)
 
 
 if __name__ == '__main__':
-    # copy_schemas("~/Downloads/USD-18.11/")
     main()

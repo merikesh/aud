@@ -4,6 +4,7 @@
 download/*
 schemas/*
 sample_data/*
+release/*
 *.DS_Store
 
 

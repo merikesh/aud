@@ -19,6 +19,14 @@ cube = root.add_child(audGeom.Cube('Cube'))
 attr = cyl.set_attribute('height', 10)
 cyl.set_attribute('axis', 'Y')
 
+translate = cyl.set_attribute('xformOp:translate', (-1.99, 0, 2), as_type='double3')
+translate.set_keyframe(1, (1,2,3))
+translate.set_keyframe(2, (5,4,3))
+translate.set_keyframe(100, (10,10,10))
+
+cyl.set_xform_order()
+
+
 xf = root.add_child(audGeom.Xform('foo'))
 xf.add_inherit(cyl, mode='add')
 
