@@ -7,7 +7,7 @@ bl_info = {
     'location': 'File > Export > Export AUD (.usda)',
     'category': 'Export',
     "description": "Exporter to write usda ascii files out without requiring USD binaries",
-    "version": (0, 0, 1),
+    "version": (0, 0, 2),
     "blender": (2, 80, 0)
 }
 
@@ -68,6 +68,24 @@ class ExportAUD(Operator, ExportHelper):
         default=False,
     )
 
+    geo_cache: BoolProperty(
+        name="Meshes as Geometry Cache",
+        description="Export Meshes as Geometry Cache instead of Skeletons",
+        default=False,
+    )
+
+    cameras: BoolProperty(
+        name="Export Cameras",
+        description="Export Cameras",
+        default=False
+    )
+
+    lights: BoolProperty(
+        name="Export Lights",
+        description="Export Lights",
+        default=False
+    )
+
     def execute(self, context):
         from . import aud_exporter
         import importlib
@@ -75,7 +93,11 @@ class ExportAUD(Operator, ExportHelper):
 
         return aud_exporter.AUDExporter(context=context,
                                         selected=self.use_selection,
-                                        animation=self.write_animation).write(filepath=self.filepath)
+                                        animation=self.write_animation,
+                                        geocache=self.geo_cache,
+                                        cameras=self.cameras,
+                                        lights=self.lights
+                                        ).write(filepath=self.filepath)
 
 
 if __name__ == "__main__":

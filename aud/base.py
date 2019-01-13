@@ -1,7 +1,7 @@
 import os
 import weakref
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 
 def formatted_value(value, array=True):

@@ -11,15 +11,32 @@ logging.basicConfig()
 logger = logging.getLogger('aud-blender')
 logger.setLevel(logging.DEBUG)
 
+class WeakList(list):
+
+    def add_prim_node(self, prim, node):
+        s = weakref.WeakSet()
+        s.add(prim)
+        s.add(node)
+        self.append(s)
+
 
 class AUDExporter(object):
-    def __init__(self, context=None, selected=False, animation=False):
+    def __init__(self,
+                 context=None,
+                 selected=False,
+                 animation=False,
+                 geocache=False,
+                 cameras=False,
+                 lights=False):
         super(AUDExporter, self).__init__()
         self.only_selected = selected
         self.context = context
         self.stage = None
         self.animation = animation
-        self.animated_objects = weakref.WeakSet()
+        self.geocache = geocache and animation
+        self.export_cameras = cameras
+        self.export_lights = lights
+        self.animated_objects = WeakList()
 
     def write(self, filepath):
         # Exit edit mode before exporting, so current object states are exported properly.
@@ -83,9 +100,11 @@ class AUDExporter(object):
         if ntype == 'MESH':
             prim = self.mesh(node)
         elif ntype == 'LIGHT':
-            prim = self.light(node)
+            if self.export_lights:
+                prim = self.light(node)
         elif ntype == 'CAMERA':
-            prim = self.camera(node)
+            if self.export_cameras:  # Put this deeper so we can still have the error below
+                prim = self.camera(node)
         elif ntype == 'EMPTY':
             prim = self.transform(node)
         else:
@@ -102,7 +121,22 @@ class AUDExporter(object):
             self.add_node(child, prim)
 
     def write_animation(self):
-        pass
+        scene = self.context.scene
+
+        for frame in range(scene.frame_start, scene.frame_end+1, 2):
+            for prim, node in self.animated_objects:
+                ntype = node.type
+
+                if ntype == 'MESH':
+                    if self.geocache:
+                        self.mesh(node, frame=frame, prim=prim)
+                elif ntype == 'LIGHT':
+                    self.light(node, frame=frame, prim=prim)
+                elif ntype == 'CAMERA':
+                    self.camera(node, frame=frame, prim=prim)
+
+                self.apply_transforms(node, prim=prim, frame=frame)
+
 
     def mesh(self, node, frame=None, prim=None):
         prim = prim or audGeom.Mesh(node.name)
@@ -145,18 +179,42 @@ class AUDExporter(object):
         return prim
 
     def light(self, node, frame=None, prim=None):
-        return
-        prim = prim or audLux.Light(node.name)
-        prim.as_type = 'Light'  # TODO: Actually use explicit light types. This is wrong.
+        light = bpy.data.lights.get(node.name)
+
+        prim = prim or {
+            'SUN': audLux.DistantLight
+        }.get(light.type, audLux.Light)(node.name)
+
+        if not prim.as_type:
+            prim.as_type = 'Light'  # Technically incorrect but just as a fallback
+
         if frame:
             logger.warning("Light type doesn't support animated write outs")
+        prim.set_attribute('color',
+                           (light.color.r, light.color.g, light.color.b),
+                           as_type='color3f')
+        prim.set_attribute('intensity', light.energy, as_type='float')
         return prim
 
-    def camera(self, node, frame=None, prim=None):
-        return
+    def camera(self, node: bpy.types.Object, frame=None, prim=None):
+        cam: bpy.types.Camera = bpy.data.cameras.get(node.name)
         prim = prim or audGeom.Camera(node.name)
         if frame:
             logger.warning("Camera type doesn't support animated write outs")
+
+        projection = {
+            'PERSP': 'perspective',
+            'ORTHO': 'orthographic'
+        }.get(cam.type)
+        prim.set_attribute('projection', projection)
+        prim.set_attribute('clippingRange',
+                           (cam.clip_start, cam.clip_end))
+        prim.set_attribute('horizontalAperture', cam.sensor_width)
+        prim.set_attribute('horizontalApertureOffset', cam.shift_x)
+        prim.set_attribute('verticalAperture', cam.sensor_height)
+        prim.set_attribute('verticalApertureOffset', cam.shift_y)
+        prim.set_attribute('focalLength', cam.lens)
+
         return prim
 
     def transform(self, node, frame=None, prim=None):
@@ -165,7 +223,7 @@ class AUDExporter(object):
             self.apply_transforms(node, prim, frame=frame)
         return prim
 
-    def apply_transforms(self, node, prim, frame=None):
+    def apply_transforms(self, node: bpy.types.Object, prim: aud.Prim, frame=None):
         location = node.location
         location = (location.x, location.y, location.z)
 
