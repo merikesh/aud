@@ -1,4 +1,3 @@
-import os
 from .base import *
 from .base import __version__
 

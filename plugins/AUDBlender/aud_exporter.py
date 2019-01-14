@@ -6,14 +6,18 @@ import bpy
 
 from . import aud
 from .aud import audGeom, audLux
+from .aud import utils as aud_utils
 
 logging.basicConfig()
 logger = logging.getLogger('aud-blender')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(aud_utils.get_logger_verbosity())
 
 
 @dataclass
 class AnimatedNode(object):
+    """
+    Store information about the animated data node
+    """
     node: bpy.types.Object
     start: int
     end: int
@@ -21,7 +25,7 @@ class AnimatedNode(object):
 
 
 class AUDExporter(object):
-
+    """Exporter for USDA files from blender"""
     def __init__(self,
                  context=None,
                  selected=False,
@@ -42,6 +46,7 @@ class AUDExporter(object):
         self.animation = True
 
     def write(self, filepath):
+        """Wrapped function to set up the write mode and change the frames before writing"""
         # Exit edit mode before exporting, so current object states are exported properly.
         if bpy.ops.object.mode_set.poll():
             bpy.ops.object.mode_set(mode='OBJECT')
@@ -54,7 +59,7 @@ class AUDExporter(object):
             scene.frame_set(scene.frame_start)
 
         try:
-            self._write(filepath)
+            self._write()
         finally:
             if self.stage:
                 self.stage.save(location=filepath)
@@ -64,7 +69,10 @@ class AUDExporter(object):
         logger.debug("Finished writing to %s", filepath)
         return {'FINISHED'}
 
-    def _write(self, filepath):
+    def _write(self):
+        """
+        Perform the actual write out of the stage
+        """
 
         self.stage = aud.Stage()
 
@@ -74,6 +82,7 @@ class AUDExporter(object):
             self.write_animation()
 
     def configure_stage(self):
+        """Setup all the stage variables"""
         if not self.stage:
             return
 
@@ -86,7 +95,7 @@ class AUDExporter(object):
             self.stage.set_framerate(scene.render.fps)
 
     def write_hierarchy(self):
-
+        """Create the initial hierarchy  of the USD file"""
         if self.only_selected:
             objects = self.context.selected_objects
         else:
@@ -96,9 +105,11 @@ class AUDExporter(object):
             self.add_node(obj, parent=self.stage)
 
     def add_node(self, node: bpy.types.Object, parent: aud.AbstractData):
+        """Add an abstract node to the hierarchy and loop over its children"""
         nname = node.name
         ntype = node.type
 
+        # For different node types, create the appropriate prims
         prim = None
         if ntype == 'MESH':
             prim = self.mesh(node)
@@ -114,13 +125,17 @@ class AUDExporter(object):
             logger.error('Object "%s" of type "%s" is not supported', nname, ntype)
             return
 
+        # If we don't have a prim, then it means we can't process it
         if not prim:
             return
 
+        # Add the prim to the parent
         parent.add_child(prim)
 
+        # And save any transformation values
         self.apply_transforms(node, prim)
 
+        # Check if there are animations associated and hold on to it for later
         if self.animation and node.animation_data:
             animdata = node.animation_data
             action: bpy.types.Action = animdata.action
@@ -132,11 +147,12 @@ class AUDExporter(object):
                 channels
             )
 
-
+        # Now iterate over the children of this node
         for child in node.children:
             self.add_node(child, prim)
 
     def write_animation(self):
+        """If there's any animation we'll now write it out"""
         if not self.animated_objects:
             return
 
@@ -164,6 +180,7 @@ class AUDExporter(object):
                                       channels=channels)
 
     def mesh(self, node, frame=None, prim=None, channels=()):
+        """Setup mesh prims"""
         prim = prim or audGeom.Mesh(node.name)
         if frame:
             logger.warning("Mesh type doesn't support animated write outs")
@@ -204,6 +221,7 @@ class AUDExporter(object):
         return prim
 
     def light(self, node, frame=None, prim=None, channels=()):
+        """setup light prims"""
         light = bpy.data.lights.get(node.name)
 
         prim = prim or {
@@ -222,6 +240,7 @@ class AUDExporter(object):
         return prim
 
     def camera(self, node: bpy.types.Object, frame=None, prim=None, channels=()):
+        """setup camera prims"""
         cam: bpy.types.Camera = bpy.data.cameras.get(node.name)
         prim = prim or audGeom.Camera(node.name)
         if frame:
@@ -244,6 +263,7 @@ class AUDExporter(object):
 
     def apply_transforms(self, node: bpy.types.Object, prim: aud.Prim,
                          frame=None, channels=()):
+        """apply transforms for an abstract prim type"""
         location = node.location
         location = (location.x, location.y, location.z)
 
