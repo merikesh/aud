@@ -1,5 +1,6 @@
 import logging
-import weakref
+from dataclasses import dataclass
+from typing import Dict, Any
 
 import bpy
 
@@ -11,16 +12,15 @@ logging.basicConfig()
 logger = logging.getLogger('aud-blender')
 logger.setLevel(logging.DEBUG)
 
-class WeakList(list):
-
-    def add_prim_node(self, prim, node):
-        s = weakref.WeakSet()
-        s.add(prim)
-        s.add(node)
-        self.append(s)
+@dataclass
+class AnimatedNode(object):
+    node: bpy.types.Object
+    start: int
+    end: int
 
 
 class AUDExporter(object):
+
     def __init__(self,
                  context=None,
                  selected=False,
@@ -36,7 +36,9 @@ class AUDExporter(object):
         self.geocache = geocache and animation
         self.export_cameras = cameras
         self.export_lights = lights
-        self.animated_objects = WeakList()
+        self.animated_objects: Dict[aud.Prim:AnimatedNode]= {}
+
+        self.animation = True
 
     def write(self, filepath):
         # Exit edit mode before exporting, so current object states are exported properly.
@@ -58,7 +60,7 @@ class AUDExporter(object):
             self.stage = None  # clear it out when we're done writing
             scene.frame_set(current_frame)
 
-        logger.info("Finished writing to %s", filepath)
+        logger.debug("Finished writing to %s", filepath)
         return {'FINISHED'}
 
     def _write(self, filepath):
@@ -92,7 +94,7 @@ class AUDExporter(object):
         for obj in objects:
             self.add_node(obj, parent=self.stage)
 
-    def add_node(self, node, parent):
+    def add_node(self, node: bpy.types.Object, parent: aud.AbstractData):
         nname = node.name
         ntype = node.type
 
@@ -115,16 +117,35 @@ class AUDExporter(object):
             return
 
         parent.add_child(prim)
+        
         self.apply_transforms(node, prim)
+
+        if self.animation and node.animation_data:
+            animdata = node.animation_data
+            action: bpy.types.Action = animdata.action
+            self.animated_objects[prim] = AnimatedNode(
+                node,
+                action.frame_range[0],
+                action.frame_range[1]
+            )
 
         for child in node.children:
             self.add_node(child, prim)
 
+
     def write_animation(self):
+        if not self.animated_objects:
+            return
+
         scene = self.context.scene
 
-        for frame in range(scene.frame_start, scene.frame_end+1, 2):
-            for prim, node in self.animated_objects:
+        for frame in range(scene.frame_start, scene.frame_end+1):
+            scene.frame_set(frame)
+            for prim, animnode in self.animated_objects.items():
+                if frame < animnode.start or frame > animnode.end:
+                    continue
+
+                node = animnode.node
                 ntype = node.type
 
                 if ntype == 'MESH':
@@ -136,6 +157,8 @@ class AUDExporter(object):
                     self.camera(node, frame=frame, prim=prim)
 
                 self.apply_transforms(node, prim=prim, frame=frame)
+
+
 
 
     def mesh(self, node, frame=None, prim=None):
