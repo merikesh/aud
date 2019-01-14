@@ -32,18 +32,28 @@ class AUDExporter(object):
                  animation=False,
                  geocache=False,
                  cameras=False,
-                 lights=False):
+                 lights=False,
+                 materials=False):
         super(AUDExporter, self).__init__()
+
+        # Exporter options
         self.only_selected = selected
         self.context = context
-        self.stage = None
         self.animation = animation
         self.geocache = geocache and animation
         self.export_cameras = cameras
         self.export_lights = lights
-        self.animated_objects: Dict[aud.Prim:AnimatedNode] = {}
+        self.export_materials = materials
 
+        # Exporter state variables
+        self.stage = None
+        self.animated_objects: Dict[aud.Prim:AnimatedNode] = {}
+        self.material_scope = None
+        self.material_objects = {}
+
+        # TODO: Remove these temporary variables
         self.animation = True
+        self.export_materials=True
 
     def write(self, filepath):
         """Wrapped function to set up the write mode and change the frames before writing"""
@@ -74,12 +84,15 @@ class AUDExporter(object):
         Perform the actual write out of the stage
         """
 
-        self.stage = aud.Stage()
+        self.stage: aud.base.Stage = aud.Stage()
 
         self.configure_stage()
         self.write_hierarchy()
         if self.animation:
             self.write_animation()
+
+        if self.material_scope and not self.material_objects:
+            self.stage.remove_child(self.material_scope)
 
     def configure_stage(self):
         """Setup all the stage variables"""
@@ -93,6 +106,11 @@ class AUDExporter(object):
         if self.animation:
             self.stage.set_frame_range(scene.frame_start, scene.frame_end)
             self.stage.set_framerate(scene.render.fps)
+
+        if self.export_materials:
+            mat_scope = aud.Prim('Materials', as_type='Scope')
+            self.stage.add_child(mat_scope)
+            self.material_scope = mat_scope
 
     def write_hierarchy(self):
         """Create the initial hierarchy  of the USD file"""

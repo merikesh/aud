@@ -86,6 +86,12 @@ class ExportAUD(Operator, ExportHelper):
         default=False
     )
 
+    materials: BoolProperty(
+        name="Export Materials",
+        description="Export Materials",
+        default=False
+    )
+
     def execute(self, context):
         from . import aud_exporter
         import importlib
@@ -96,7 +102,8 @@ class ExportAUD(Operator, ExportHelper):
                                         animation=self.write_animation,
                                         geocache=self.geo_cache,
                                         cameras=self.cameras,
-                                        lights=self.lights
+                                        lights=self.lights,
+                                        materials=self.materials
                                         ).write(filepath=self.filepath)
 
 
