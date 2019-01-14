@@ -90,7 +90,10 @@ class AbstractData(object):
         self.value = None
 
     def set_parent(self, parent):
-        self.parent = weakref.proxy(parent)
+        if parent:
+            self.parent = weakref.proxy(parent)
+        else:
+            self.parent = None
 
     def unset_parent(self):
         self.parent = None
