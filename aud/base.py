@@ -220,6 +220,17 @@ class AbstractData(object):
         prim.set_parent(self)
         return prim
 
+    def remove_child(self, prim):
+        """Remove the prim. Returns a boolean if it was a child or not"""
+        assert isinstance(prim, Prim), "Child must be a primitive"
+        if prim not in self.children:
+            return False
+
+        self.children.pop(self.children.index(prim))
+        prim.set_parent(None)
+
+        return True
+
     def _class_inheritence(self):
         classes = list(self.__class__.__bases__)
         classes.append(self.__class__)
@@ -306,15 +317,20 @@ class Prim(AbstractData):
 
         tokens.append('"{}"'.format(self.name))
 
-        lines.append('\n{}{} (\n'.format(self.indent(), ' '.join(tokens)))
-        self.level += 1
+        lines.append('\n{}{}'.format(self.indent(), ' '.join(tokens)))
+        if self.properties:
+            lines.append(' (')
+            lines.append('\n')
+            self.level += 1
 
-        for prop in (self.variants + self.references + self.inherits + self.properties):
-            lines.extend(prop.lines(indent=self.level))
-            lines.append("\n")
+            for prop in (self.variants + self.references + self.inherits + self.properties):
+                lines.extend(prop.lines(indent=self.level))
+                lines.append("\n")
 
-        self.level -= 1
-        lines.append('{0})\n{0}{{\n'.format(self.indent()))
+            self.level -= 1
+            lines.append('{})'.format(self.indent()))
+
+        lines.append('\n{0}{{\n'.format(self.indent()))
 
         self.level += 1
         for attr in self.attributes:
