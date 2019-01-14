@@ -33,7 +33,8 @@ class AUDExporter(object):
                  geocache=False,
                  cameras=False,
                  lights=False,
-                 materials=False):
+                 materials=False,
+                 skeletons=False):
         super(AUDExporter, self).__init__()
 
         # Exporter options
@@ -44,6 +45,7 @@ class AUDExporter(object):
         self.export_cameras = cameras
         self.export_lights = lights
         self.export_materials = materials
+        self.export_skeletons = skeletons
 
         # Exporter state variables
         self.stage = None

@@ -92,6 +92,14 @@ class ExportAUD(Operator, ExportHelper):
         default=False
     )
 
+    skeletons: BoolProperty(
+        name="Export Skeleton",
+        description="Export Skeleton",
+        default=False
+    )
+
+
+
     def execute(self, context):
         from . import aud_exporter
         import importlib
@@ -103,7 +111,8 @@ class ExportAUD(Operator, ExportHelper):
                                         geocache=self.geo_cache,
                                         cameras=self.cameras,
                                         lights=self.lights,
-                                        materials=self.materials
+                                        materials=self.materials,
+                                        skeletons=self.skeletons
                                         ).write(filepath=self.filepath)
 
 
