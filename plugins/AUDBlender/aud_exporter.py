@@ -1,22 +1,23 @@
 import logging
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Dict, List, Set
 
 import bpy
 
 from . import aud
 from .aud import audGeom, audLux
-from pprint import pprint
 
 logging.basicConfig()
 logger = logging.getLogger('aud-blender')
 logger.setLevel(logging.DEBUG)
+
 
 @dataclass
 class AnimatedNode(object):
     node: bpy.types.Object
     start: int
     end: int
+    channels: Set[str]
 
 
 class AUDExporter(object):
@@ -36,7 +37,7 @@ class AUDExporter(object):
         self.geocache = geocache and animation
         self.export_cameras = cameras
         self.export_lights = lights
-        self.animated_objects: Dict[aud.Prim:AnimatedNode]= {}
+        self.animated_objects: Dict[aud.Prim:AnimatedNode] = {}
 
         self.animation = True
 
@@ -108,7 +109,7 @@ class AUDExporter(object):
             if self.export_cameras:  # Put this deeper so we can still have the error below
                 prim = self.camera(node)
         elif ntype == 'EMPTY':
-            prim = self.transform(node)
+            prim = audGeom.Xform(node.name)
         else:
             logger.error('Object "%s" of type "%s" is not supported', nname, ntype)
             return
@@ -117,21 +118,23 @@ class AUDExporter(object):
             return
 
         parent.add_child(prim)
-        
+
         self.apply_transforms(node, prim)
 
         if self.animation and node.animation_data:
             animdata = node.animation_data
             action: bpy.types.Action = animdata.action
+            channels = {str(c.data_path) for c in action.fcurves if c.data_path}
             self.animated_objects[prim] = AnimatedNode(
                 node,
                 action.frame_range[0],
-                action.frame_range[1]
+                action.frame_range[1],
+                channels
             )
+
 
         for child in node.children:
             self.add_node(child, prim)
-
 
     def write_animation(self):
         if not self.animated_objects:
@@ -139,7 +142,7 @@ class AUDExporter(object):
 
         scene = self.context.scene
 
-        for frame in range(scene.frame_start, scene.frame_end+1):
+        for frame in range(scene.frame_start, scene.frame_end + 1):
             scene.frame_set(frame)
             for prim, animnode in self.animated_objects.items():
                 if frame < animnode.start or frame > animnode.end:
@@ -147,21 +150,20 @@ class AUDExporter(object):
 
                 node = animnode.node
                 ntype = node.type
+                channels = animnode.channels
 
                 if ntype == 'MESH':
                     if self.geocache:
-                        self.mesh(node, frame=frame, prim=prim)
+                        self.mesh(node, frame=frame, prim=prim, channels=channels)
                 elif ntype == 'LIGHT':
-                    self.light(node, frame=frame, prim=prim)
+                    self.light(node, frame=frame, prim=prim, channels=channels)
                 elif ntype == 'CAMERA':
-                    self.camera(node, frame=frame, prim=prim)
+                    self.camera(node, frame=frame, prim=prim, channels=channels)
 
-                self.apply_transforms(node, prim=prim, frame=frame)
+                self.apply_transforms(node, frame=frame, prim=prim,
+                                      channels=channels)
 
-
-
-
-    def mesh(self, node, frame=None, prim=None):
+    def mesh(self, node, frame=None, prim=None, channels=()):
         prim = prim or audGeom.Mesh(node.name)
         if frame:
             logger.warning("Mesh type doesn't support animated write outs")
@@ -201,7 +203,7 @@ class AUDExporter(object):
 
         return prim
 
-    def light(self, node, frame=None, prim=None):
+    def light(self, node, frame=None, prim=None, channels=()):
         light = bpy.data.lights.get(node.name)
 
         prim = prim or {
@@ -219,7 +221,7 @@ class AUDExporter(object):
         prim.set_attribute('intensity', light.energy, as_type='float')
         return prim
 
-    def camera(self, node: bpy.types.Object, frame=None, prim=None):
+    def camera(self, node: bpy.types.Object, frame=None, prim=None, channels=()):
         cam: bpy.types.Camera = bpy.data.cameras.get(node.name)
         prim = prim or audGeom.Camera(node.name)
         if frame:
@@ -240,13 +242,8 @@ class AUDExporter(object):
 
         return prim
 
-    def transform(self, node, frame=None, prim=None):
-        prim = prim or audGeom.Xform(node.name)
-        if frame:
-            self.apply_transforms(node, prim, frame=frame)
-        return prim
-
-    def apply_transforms(self, node: bpy.types.Object, prim: aud.Prim, frame=None):
+    def apply_transforms(self, node: bpy.types.Object, prim: aud.Prim,
+                         frame=None, channels=()):
         location = node.location
         location = (location.x, location.y, location.z)
 
@@ -257,16 +254,20 @@ class AUDExporter(object):
         scale = (scale.x, scale.y, scale.z)
 
         attrMap = (
-            ('xformOp:translate', location),
-            ('xformOp:rotateXYZ', rotation),
-            ('xformOp:scale', scale)
+            ('xformOp:translate', location, 'location'),
+            ('xformOp:rotateXYZ', rotation, 'rotation_euler'),
+            ('xformOp:scale', scale, 'scale')
         )
 
         if frame is None:
             prim.set_xform_order()
-        for attr, val in attrMap:
+
+        for attr, val, channel in attrMap:
             if frame is None:
                 prim.set_attribute(attr, val, as_type='double3')
+                continue
+
+            if channel not in channels:
                 continue
 
             attr = prim.get_attribute(attr)
