@@ -10,6 +10,47 @@ requiring the USD libraries to be present on your system.
 This can be extremely useful if you need to create usda files but where building the USD 
 libraries is either difficult or impossible.
 
+## Usage
+
+Look at `tests.py` in the root of the repository for usage examples,
+but a simple example is
+
+```python
+
+import aud
+from aud import audGeom
+
+# Intialize the stage
+stage = aud.Stage()
+
+# Configure the stage parameters
+stage.set_frame_range(1, 200)
+stage.set_framerate(24)
+stage.set_up_axis('Y')
+
+# Add a root to the stage
+root = aud.Prim('root')
+stage.add_child(root)
+
+# Add a cylinder and cube to the root
+cyl = root.add_child(audGeom.Cylinder('cylinder'))
+cube = root.add_child(audGeom.Cube('Cube'))
+
+# Set some attributes on the cylinder
+attr = cyl.set_attribute('height', 10)
+cyl.set_attribute('axis', 'Y')
+
+# Set keyframes on the cylinder
+translate = cyl.set_attribute('xformOp:translate', (-1.99, 0, 2), as_type='double3')
+translate.set_keyframe(1, (1,2,3))
+translate.set_keyframe(2, (5,4,3))
+translate.set_keyframe(100, (10,10,10))
+cyl.set_xform_order()
+
+
+stage.save('hello_world.usda')
+```
+
 ## Current Status
 
 This repository is currently under development.
