@@ -48,3 +48,4 @@ You can export `.usda` files using **Files > Export > AUD (.usda)**
 ## Contributions
 
 I welcome any contributions on this [on the GitHub repository](https://github.com/merikesh/aud)
+

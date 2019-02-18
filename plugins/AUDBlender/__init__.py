@@ -80,12 +80,6 @@ class ExportAUD(Operator, ExportHelper):
         default=False
     )
 
-    lights: BoolProperty(
-        name="Export Lights",
-        description="Export Lights",
-        default=False
-    )
-
     materials: BoolProperty(
         name="Export Materials",
         description="Export Materials",
@@ -110,7 +104,6 @@ class ExportAUD(Operator, ExportHelper):
                                         animation=self.write_animation,
                                         geocache=self.geo_cache,
                                         cameras=self.cameras,
-                                        lights=self.lights,
                                         materials=self.materials,
                                         skeletons=self.skeletons
                                         ).write(filepath=self.filepath)
@@ -126,3 +119,9 @@ if __name__ == "__main__":
 
     # test call
     bpy.ops.export_aud.usda('INVOKE_DEFAULT')
+
+
+"""
+import bpy, os
+bpy.ops.export_aud.usda(filepath=os.path.expanduser("~/untitled.usda"))
+"""
