@@ -1,3 +1,6 @@
+> **DEPRECATED**: Due to Blender adding native support for USD, the usefulness of this repository is approaching zero.
+> So I will leave this up as a reference but will no longer maintain this. It was relatively unmaintained anyway due to work time conflicts.
+
 # AUD
 
 **AUD** ( /ɑd/ ), short for the Alternate USD Driver, is an "odd" library
